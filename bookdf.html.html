@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Controle de Manutenção - Delly's</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+  body { background: #f0f0f0; }
+
+  .header { background: #1a2e4a; color: white; padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 22px; }
+  .header .logo { font-size: 20px; font-weight: bold; text-align:right; }
+
+  .cards { display: flex; background: white; border-bottom: 1px solid #ddd; }
+  .card { flex: 1; text-align: center; padding: 15px; border-right: 1px solid #ddd; }
+  .card .label { font-size: 11px; color: #666; text-transform: uppercase; }
+  .card .value { font-size: 26px; font-weight: bold; }
+  .card .value.red { color: #e74c3c; }
+  .card .value.orange { color: #e67e22; }
+  .card .value.green { color: #27ae60; }
+
+  .filters { background: white; padding: 10px 15px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #ddd; flex-wrap: wrap; }
+  .toolbar { background: white; padding: 10px 15px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #ddd; flex-wrap: wrap; position: relative; }
+
+  .btn { padding: 7px 14px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 13px; background: white; }
+  .btn.green-btn { background: #27ae60; color: white; border-color:#27ae60; font-weight: bold; }
+  .btn.dark { background: #1a2e4a; color: white; border-color: #1a2e4a; }
+  .btn.excel { background: #27ae60; color: white; border-color:#27ae60; }
+  .btn.import { background: #2980b9; color: white; border-color:#2980b9; font-weight: bold; }
+  .btn.pdf { background: #e74c3c; color: white; border-color:#e74c3c; }
+  .btn.limpar-btn { background: #e74c3c; color: white; border-color:#e74c3c; }
+  .btn.filtros-btn { background: #2980b9; color: white; border-color:#2980b9; font-weight: bold; position: relative; }
+  .btn.filtros-btn .badge-count {
+    background: #e74c3c; color: white; border-radius: 50%;
+    font-size: 10px; padding: 1px 5px; font-weight: bold;
+    position: absolute; top: -6px; right: -6px;
+  }
+
+  select, input[type="text"], input[type="number"], input[type="date"] {
+    padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; background: white;
+  }
+  .search { margin-left: auto; width: 260px; font-size: 13px; padding: 7px 12px; }
+
+  .comp-wrapper { position: relative; display: inline-flex; align-items: center; }
+  .comp-btn { background: white; color: #333; border: 1px solid #ccc; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; }
+  .comp-btn:hover { border-color: #999; }
+  .comp-btn .tag { background: #e74c3c; color: white; border-radius: 10px; font-size: 10px; padding: 1px 6px; font-weight: bold; }
+  .comp-dropdown { display: none; position: absolute; top: 110%; left: 0; background: white; border: 1px solid #ccc; border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,0.15); z-index: 999; padding: 14px; min-width: 200px; }
+  .comp-dropdown.aberto { display: block; }
+  .comp-dropdown label { font-size: 11px; font-weight: bold; color: #555; display: block; margin-bottom: 4px; margin-top: 10px; }
+  .comp-dropdown label:first-child { margin-top: 0; }
+  .comp-dropdown select { width: 100%; }
+  .comp-dropdown .comp-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .comp-dropdown .comp-actions button { flex: 1; padding: 7px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; }
+  .comp-dropdown .comp-actions .aplicar { background: #27ae60; color: white; }
+  .comp-dropdown .comp-actions .limpar { background: #e74c3c; color: white; }
+
+  .fadv-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.45); z-index: 1100; justify-content: center; align-items: center; }
+  .fadv-overlay.ativo { display: flex; }
+  .fadv-modal { background: white; border-radius: 8px; width: 700px; max-width: 96%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+  .fadv-header { background: #2980b9; color: white; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0; }
+  .fadv-header h2 { font-size: 15px; }
+  .fadv-close { background: none; border: none; color: white; font-size: 22px; cursor: pointer; }
+  .fadv-body { padding: 20px; }
+  .fadv-footer { padding: 14px 20px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px; }
+
+  .fadv-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .fadv-group { display: flex; flex-direction: column; gap: 5px; }
+  .fadv-group.full { grid-column: 1 / -1; }
+  .fadv-group label { font-size: 11px; font-weight: bold; color: #555; text-transform: uppercase; }
+  .fadv-group select, .fadv-group input { padding: 7px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; width: 100%; }
+  .fadv-section-title { grid-column: 1 / -1; font-size: 12px; font-weight: bold; color: #2980b9; border-bottom: 1px solid #d0e8f8; padding-bottom: 5px; margin-top: 6px; text-transform: uppercase; }
+
+  .btn-aplicar-fadv { background: #2980b9; color: white; border: none; padding: 10px 25px; border-radius: 4px; font-size: 14px; cursor: pointer; font-weight: bold; }
+  .btn-limpar-fadv { background: #e74c3c; color: white; border: none; padding: 10px 25px; border-radius: 4px; font-size: 14px; cursor: pointer; }
+
+  input[readonly] { background: #f0f4f8; color: #1a2e4a; font-weight: bold; cursor: not-allowed; border-color: #b0c4de; }
+
+  .table-container { overflow-x: auto; background: white; }
+  table { width: 100%; border-collapse: collapse; background: white; font-size: 12px; min-width: 1400px; }
+  th { background: #1a2e4a; color: white; padding: 10px 8px; text-align: left; font-size: 11px; white-space: nowrap; position: sticky; top: 0; z-index: 5; }
+  td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: middle; }
+  tr:hover { background: #f9f9f9; }
+
+  .badge { padding: 4px 8px; border-radius: 3px; font-size: 10px; font-weight: bold; color: white; text-transform: uppercase; display: inline-block; min-width: 100px; text-align: center; }
+  .cat-pneu { background: #e67e22; }
+  .cat-manutencao { background: #3498db; }
+  .cat-recapagem { background: #d35400; }
+  .cat-equipamento { background: #9b59b6; }
+  .cat-abastecimento { background: #2ecc71; }
+  .cat-servico { background: #34495e; }
+  .cat-lavagem { background: #1abc9c; }
+  .cat-padrao { background: #95a5a6; }
+
+  .tipo-serv { font-size: 11px; font-weight: bold; }
+  .tipo-serv.corretiva { color: #e74c3c; }
+  .tipo-serv.capex { color: #8e44ad; }
+  .valor { font-weight: bold; color: #27ae60; white-space: nowrap; }
+
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+  .modal-overlay.ativo { display: flex; }
+  .modal { background: white; border-radius: 8px; width: 750px; max-width: 95%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+  .modal-header { background: #1a2e4a; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0; }
+  .modal-header h2 { font-size: 16px; }
+  .modal-close { background: none; border: none; color: white; font-size: 22px; cursor: pointer; }
+  .modal-body { padding: 20px; }
+  .modal-footer { padding: 15px 20px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group.full { grid-column: 1 / -1; }
+  .form-group label { font-size: 12px; font-weight: bold; color: #555; }
+  .form-group input, .form-group select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; width: 100%; }
+
+  .msg-sucesso { display: none; background: #d4edda; color: #155724; border: 1px solid #c3e6cb; padding: 10px 15px; border-radius: 4px; margin-bottom: 15px; font-size: 13px; }
+  .msg-erro-frota { display: none; background: #fdecea; color: #c0392b; border: 1px solid #f5c6cb; padding: 6px 12px; border-radius: 4px; font-size: 11px; margin-top: 4px; }
+
+  .btn-salvar { background: #27ae60; color: white; border: none; padding: 10px 25px; border-radius: 4px; font-size: 14px; cursor: pointer; font-weight: bold; }
+  .btn-cancelar { background: #e74c3c; color: white; border: none; padding: 10px 25px; border-radius: 4px; font-size: 14px; cursor: pointer; }
+
+  #loadingOverlay { display: none; position: fixed; inset: 0; background: rgba(26, 46, 74, 0.85); z-index: 3000; flex-direction: column; align-items: center; justify-content: center; color: white; }
+  .spinner { width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.2); border-radius: 50%; border-top-color: #fff; animation: spin 1s linear infinite; margin-bottom: 15px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay">
+    <div class="spinner"></div>
+    <div style="font-weight:bold;letter-spacing:1px;">PROCESSANDO DADOS...</div>
+</div>
+
+<div class="header">
+  <h1>🚚 CONTROLE DE MANUTENÇÃO</h1>
+  <div class="logo">D DELLY'S<br><small style="font-size:11px;font-weight:normal;">FOOD SERVICE</small></div>
+</div>
+
+<div class="cards">
+  <div class="card"><div class="label">Total de Registros</div><div class="value" id="total">0</div></div>
+  <div class="card"><div class="label">Manutenção</div><div class="value red" id="qtdManutencao">0</div></div>
+  <div class="card"><div class="label">Pneu / Recapagem</div><div class="value orange" id="qtdPneu">0</div></div>
+  <div class="card"><div class="label">Valor Total</div><div class="value green" id="valorTotal">R$ 0</div></div>
+  <div class="card"><div class="label">Fornecedores</div><div class="value" id="qtdFornecedores">0</div></div>
+</div>
+
+<div class="filters">
+  <label style="font-size:12px;color:#555;">Filtrar Categoria:</label>
+  <select id="filtroCategoria" onchange="renderizar()">
+    <option value="todos">TODAS</option>
+    <option>Pneu</option>
+    <option>Manutenção</option>
+    <option>Pneu/Recapagem</option>
+    <option>Manutenção de equipamento</option>
+    <option>Abastecimento</option>
+    <option>Serviço de terceiro</option>
+    <option>Lavagem</option>
+  </select>
+
+  <label style="font-size:12px;color:#555;">Competência:</label>
+  <div class="comp-wrapper" id="compWrapper">
+    <button class="comp-btn" onclick="toggleComp(event)">
+      COMPETÊNCIA <span class="tag" id="compTag" style="display:none">●</span> ▾
+    </button>
+    <div class="comp-dropdown" id="compDropdown">
+      <label>MÊS</label>
+      <select id="fCompMes">
+        <option value="">Todos</option>
+        <option value="01">Janeiro</option><option value="02">Fevereiro</option>
+        <option value="03">Março</option><option value="04">Abril</option>
+        <option value="05">Maio</option><option value="06">Junho</option>
+        <option value="07">Julho</option><option value="08">Agosto</option>
+        <option value="09">Setembro</option><option value="10">Outubro</option>
+        <option value="11">Novembro</option><option value="12">Dezembro</option>
+      </select>
+      <label>ANO</label>
+      <select id="fCompAno"><option value="">Todos</option></select>
+      <div class="comp-actions">
+        <button class="aplicar" onclick="aplicarComp()">✔ APLICAR</button>
+        <button class="limpar" onclick="limparComp()">✕ LIMPAR</button>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn excel">EXCEL</button>
+  <button class="btn import-xml" style="background: #e67e22; color: white; border-color: #e67e22; font-weight: bold;" onclick="document.getElementById('xmlFileInput').click()">IMPORTAR XML</button>
+  <input type="file" id="xmlFileInput" style="display:none" accept=".xml" onchange="handleXmlImport(event)">
+</div>
+
+<div class="toolbar">
+  <button class="btn green-btn" onclick="abrirModal()">+ ADICIONAR</button>
+
+  <button class="btn filtros-btn" onclick="abrirFiltrosAvancados()">
+    🔍 FILTROS AVANÇADOS
+    <span class="badge-count" id="badgeFiltros" style="display:none">0</span>
+  </button>
+
+  <button class="btn limpar-btn" onclick="limparTodosFiltros()">✕ LIMPAR FILTROS</button>
+
+  <button class="btn import" onclick="document.getElementById('fileInput').click()">
+    📥 IMPORTAR EXCEL
+  </button>
+  <input type="file" id="fileInput" style="display:none" accept=".xlsx, .xls" onchange="handleImport(event)">
+
+  <input class="search" type="text" id="busca" placeholder="BUSCAR PLACA, PRODUTO OU FORNECEDOR..." oninput="renderizar()">
+</div>
+
+<div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>CATEGORIA</th>
+          <th>FROTA</th><th>FILIAL</th><th>PLACA</th><th>Nº NF</th>
+          <th>PRODUTO / SERVIÇO</th><th>QTD</th>
+          <th>VALOR UNIT.</th><th>VALOR TOTAL</th><th>TIPO</th>
+          <th>FORNECEDOR</th><th>UF</th>
+          <th>DATA AQUISIÇÃO</th><th>DATA COMPETÊNCIA</th>
+          <th>TIPO DE SERVIÇO</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+</div>
+
+<!-- MODAL FILTROS AVANÇADOS -->
+<div class="fadv-overlay" id="fadvOverlay">
+  <div class="fadv-modal">
+    <div class="fadv-header">
+      <h2>🔍 FILTROS AVANÇADOS</h2>
+      <button class="fadv-close" onclick="fecharFiltrosAvancados()">✕</button>
+    </div>
+    <div class="fadv-body">
+      <div class="fadv-grid">
+        <div class="fadv-section-title">📋 IDENTIFICAÇÃO</div>
+        <div class="fadv-group">
+          <label>Categoria</label>
+          <select id="fa_cat">
+            <option value="">Todas</option>
+            <option>Pneu</option><option>Manutenção</option>
+            <option>Pneu/Recapagem</option><option>Manutenção de equipamento</option>
+            <option>Abastecimento</option><option>Serviço de terceiro</option>
+            <option>Lavagem</option>
+          </select>
+        </div>
+        <div class="fadv-group">
+          <label>Frota</label>
+          <input type="number" id="fa_frota" placeholder="Ex: 31" oninput="faAtualizarPlacaPorFrota()">
+        </div>
+        <div class="fadv-group">
+          <label>Placa</label>
+          <input type="text" id="fa_placa" placeholder="Aguardando frota..." readonly>
+        </div>
+        <div class="fadv-group">
+          <label>Filial</label>
+          <input type="text" id="fa_filial" placeholder="Ex: A3">
+        </div>
+        <div class="fadv-group">
+          <label>UF</label>
+          <select id="fa_uf"><option value="">Todas</option></select>
+        </div>
+        <div class="fadv-group">
+          <label>Nº NF</label>
+          <input type="text" id="fa_nf" placeholder="Ex: 14495">
+        </div>
+        <div class="fadv-section-title">🔧 PRODUTO / SERVIÇO</div>
+        <div class="fadv-group full">
+          <label>Produto / Serviço (contém)</label>
+          <input type="text" id="fa_produto" placeholder="Buscar no produto ou serviço...">
+        </div>
+        <div class="fadv-group">
+          <label>Tipo (Produto/Serviço)</label>
+          <select id="fa_tipo">
+            <option value="">Todos</option>
+            <option>Produto</option>
+            <option>Serviço</option>
+          </select>
+        </div>
+        <div class="fadv-group">
+          <label>Tipo de Serviço</label>
+          <select id="fa_tserv">
+            <option value="">Todos</option>
+            <option>Corretiva</option>
+            <option>Preventiva</option>
+            <option>Ativo (CAPEX)</option>
+          </select>
+        </div>
+        <div class="fadv-group">
+          <label>Fornecedor (contém)</label>
+          <input type="text" id="fa_fornecedor" placeholder="Nome do fornecedor...">
+        </div>
+        <div class="fadv-section-title">💰 VALORES</div>
+        <div class="fadv-group">
+          <label>Valor Total Mínimo (R$)</label>
+          <input type="number" id="fa_vmin" placeholder="Ex: 100">
+        </div>
+        <div class="fadv-group">
+          <label>Valor Total Máximo (R$)</label>
+          <input type="number" id="fa_vmax" placeholder="Ex: 5000">
+        </div>
+        <div class="fadv-section-title">📅 DATAS</div>
+        <div class="fadv-group">
+          <label>Data Aquisição — De</label>
+          <input type="date" id="fa_dtaq_de">
+        </div>
+        <div class="fadv-group">
+          <label>Data Aquisição — Até</label>
+          <input type="date" id="fa_dtaq_ate">
+        </div>
+        <div class="fadv-group">
+          <label>Data Competência — De</label>
+          <input type="date" id="fa_comp_de">
+        </div>
+        <div class="fadv-group">
+          <label>Data Competência — Até</label>
+          <input type="date" id="fa_comp_ate">
+        </div>
+      </div>
+    </div>
+    <div class="fadv-footer">
+      <button class="btn-limpar-fadv" onclick="limparFiltrosAvancados()">✕ LIMPAR</button>
+      <button class="btn-aplicar-fadv" onclick="aplicarFiltrosAvancados()">✔ APLICAR FILTROS</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ADICIONAR -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>➕ ADICIONAR NOVO REGISTRO</h2>
+      <button class="modal-close" onclick="fecharModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="msg-sucesso" id="msgSucesso">✅ Registro adicionado com sucesso!</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>CATEGORIA *</label>
+          <select id="f_cat">
+            <option value="">Selecione...</option>
+            <option>Pneu</option><option>Manutenção</option>
+            <option>Pneu/Recapagem</option><option>Manutenção de equipamento</option>
+            <option>Abastecimento</option><option>Serviço de terceiro</option>
+            <option>Lavagem</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>FILIAL</label>
+          <input type="text" id="f_filial" placeholder="Ex: A3" oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="form-group">
+          <label>FROTA *</label>
+          <input type="number" id="f_frota" placeholder="Digite a frota..." oninput="atualizarPlacaPorFrota()">
+          <div class="msg-erro-frota" id="erroFrota">⚠️ Frota não cadastrada.</div>
+        </div>
+        <div class="form-group">
+          <label>PLACA <span style="color:#27ae60;font-size:10px;">● automático</span></label>
+          <input type="text" id="f_placa" placeholder="Aguardando frota..." readonly>
+        </div>
+        <div class="form-group">
+          <label>Nº DA NF</label>
+          <input type="text" id="f_nf" placeholder="Ex: 14495">
+        </div>
+        <div class="form-group">
+          <label>TIPO</label>
+          <select id="f_tipo">
+            <option value="">Selecione...</option>
+            <option>Produto</option><option>Serviço</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>PRODUTO / SERVIÇO *</label>
+          <input type="text" id="f_produto" placeholder="Descreva o item" oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="form-group">
+          <label>QUANTIDADE</label>
+          <input type="number" id="f_qtd" value="1" min="1" oninput="calcTotal()">
+        </div>
+        <div class="form-group">
+          <label>VALOR UNITÁRIO (R$)</label>
+          <input type="number" id="f_vunit" placeholder="0,00" step="0.01" oninput="calcTotal()">
+        </div>
+        <div class="form-group">
+          <label>VALOR TOTAL (R$)</label>
+          <input type="number" id="f_vtotal" placeholder="0,00" readonly style="background:#f0f4f8;">
+        </div>
+        <div class="form-group">
+          <label>UF</label>
+          <input type="text" id="f_uf" placeholder="Ex: DF" maxlength="2" oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="form-group full">
+          <label>FORNECEDOR</label>
+          <input type="text" id="f_fornecedor" placeholder="Nome do fornecedor" oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="form-group">
+          <label>DATA DE AQUISIÇÃO</label>
+          <input type="date" id="f_dtaq">
+        </div>
+        <div class="form-group">
+          <label>DATA DE COMPETÊNCIA</label>
+          <input type="date" id="f_competencia">
+        </div>
+        <div class="form-group">
+          <label>TIPO DE SERVIÇO</label>
+          <select id="f_tserv">
+            <option value="">Selecione...</option>
+            <option>Corretiva</option><option>Preventiva</option><option>Ativo (CAPEX)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancelar" onclick="fecharModal()">CANCELAR</button>
+      <button class="btn-salvar" onclick="salvarChamado()">✔ SALVAR</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const frotaPlacaVinculo = {
+  12:"OQL2G67",13:"OQL2G70",14:"JJQ1786",15:"SXW0C82",16:"JJE6027",
+  17:"OQL1G23",18:"JGZ2328",19:"OQL6A05",20:"PVK0208",21:"PVK1500",
+  22:"TPP3I25",23:"JJF2336",24:"JJF2736",25:"JIM6186",26:"JIM6196",
+  27:"HAZ3I20",28:"RYL9H38",29:"JIG0627",30:"JIG0637",31:"JIG0647",
+  32:"JIG0607",33:"JGY8970",34:"JIF7121",35:"JIF7131",36:"JIF7101",
+  37:"JIF7141",38:"JIS8742",39:"TPP3I55",40:"JJK0235",41:"JJK0245",
+  42:"RYL9H58",43:"RYW4B39",44:"JKP6271",45:"JJA7052",46:"JKP6311",
+  47:"JKP6251",48:"JKP6331",49:"JKP6291",50:"JJC6258",51:"JJC6268",
+  52:"JJC6298",53:"TPP4A25",54:"JJD1915",55:"JJD1905",56:"RYL9I08",
+  57:"SXK7D30",58:"OVT8349",59:"OVT8352",60:"TPP4C65",61:"OVT7731",
+  62:"OVT7734",63:"OVT8338",64:"OVT8339",65:"JGZ9461",66:"RYW3I59",
+  67:"RYW2B39",68:"RYW2B59",69:"PAJ7856",70:"PAH6794",71:"PAW3424",
+  72:"PBA1650",73:"SXK7E20",74:"PBB3193",75:"PBD0987",76:"PUZ8663",
+  77:"TPP4D85",79:"GXH9992",80:"HJA7351"
+};
+
+let dados = [];
+let proximoId = 1;
+let compMesAtivo = "";
+let compAnoAtivo = "";
+let fa = {cat:"",placa:"",frota:"",filial:"",uf:"",nf:"",produto:"",tipo:"",tserv:"",fornecedor:"",vmin:"",vmax:"",dtaq_de:"",dtaq_ate:"",comp_de:"",comp_ate:""};
+
+function pad2(n){return String(n).padStart(2,"0");}
+function fmtData(val){if(!val)return"-";const p=val.split("-"); if(p.length<3) return val; return `${p[2]}/${p[1]}/${p[0]}`;}
+function brToISO(br){if(!br||br==="-")return"";const p=br.split("/");if(p.length!==3)return"";return`${p[2]}-${pad2(p[1])}-${pad2(p[0])}`;}
+function fmt(v){return"R$ "+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function getCompetenciaParts(reg){let iso=reg.compISO||brToISO(reg.comp);if(!iso)return null;const p=iso.split("-"); return{m:pad2(p[1]),y:String(p[0])};}
+
+function showLoading() { document.getElementById('loadingOverlay').style.display = 'flex'; }
+function hideLoading() { document.getElementById('loadingOverlay').style.display = 'none'; }
+
+function handleImport(e) {
+    const file = e.target.files[0];
+    if(!file) return;
+    showLoading();
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        try {
+            const data = new Uint8Array(evt.target.result);
+            const wb = XLSX.read(data, {type:'array', cellDates:true});
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
+            processImportedRows(rows);
+        } catch (err) {
+            alert("Erro ao importar: " + err.message);
+        } finally {
+            hideLoading();
+            e.target.value = "";
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function processImportedRows(rows) {
+    if(rows.length < 2) return;
+    const normalize = s => String(s||'').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+    const headers = rows[0].map(h => normalize(h));
+
+    const findIdx = (keys) => {
+        for(let k of keys) {
+            let nk = normalize(k);
+            let i = headers.findIndex(h => h.includes(nk));
+            if(i !== -1) return i;
+        }
+        return -1;
+    };
+
+    const idx = {
+        cat: findIdx(['categoria']), frota: findIdx(['frota']), filial: findIdx(['filial']),
+        placa: findIdx(['placa']), nf: findIdx(['nf', 'nota']), prod: findIdx(['produto']),
+        qtd: findIdx(['qtd', 'quantidade']), vunit: findIdx(['valor unit']), vtotal: findIdx(['valor total']),
+        tipo: findIdx(['produto ou servico']), forn: findIdx(['fornecedor']), uf: findIdx(['uf']),
+        dtaq: findIdx(['aquisicao']), comp: findIdx(['competencia']), tserv: findIdx(['tipo de servico'])
+    };
+
+    const novos = [];
+    for(let i=1; i<rows.length; i++) {
+        const r = rows[i];
+        if(!r || r.length === 0 || r.every(c => c === '')) continue;
+
+        let d1 = r[idx.dtaq], d2 = r[idx.comp];
+        let sDtaq = d1 instanceof Date ? d1.toLocaleDateString('pt-BR') : String(d1||'-');
+        let sComp = d2 instanceof Date ? d2.toLocaleDateString('pt-BR') : String(d2||'-');
+        let isoComp = d2 instanceof Date ? d2.toISOString().split('T')[0] : brToISO(sComp);
+
+        novos.push({
+            id: proximoId++,
+            cat: String(r[idx.cat] || 'Outros'),
+            frota: String(r[idx.frota] || '-'),
+            filial: String(r[idx.filial] || '-'),
+            placa: String(r[idx.placa] || '-').toUpperCase(),
+            nf: String(r[idx.nf] || '-'),
+            prod: String(r[idx.prod] || '-'),
+            qtd: parseFloat(String(r[idx.qtd]).replace(',','.')) || 0,
+            vunit: parseFloat(String(r[idx.vunit]).replace(',','.')) || 0,
+            vtotal: parseFloat(String(r[idx.vtotal]).replace(',','.')) || 0,
+            tipo: String(r[idx.tipo] || '-'),
+            forn: String(r[idx.forn] || '-'),
+            uf: String(r[idx.uf] || '-'),
+            dtaq: sDtaq, comp: sComp, compISO: isoComp,
+            tserv: String(r[idx.tserv] || 'Corretiva')
+        });
+    }
+    dados = [...novos, ...dados];
+    renderizar();
+}
+
+function renderizar() {
+    const busca = document.getElementById("busca").value.toUpperCase();
+    const catFiltro = document.getElementById("filtroCategoria").value;
+
+    const lista = dados.filter(d => {
+        if(catFiltro !== "todos" && d.cat !== catFiltro) return false;
+        if(busca && !d.placa.includes(busca) && !d.prod.toUpperCase().includes(busca) && !d.forn.toUpperCase().includes(busca)) return false;
+        const p = getCompetenciaParts(d);
+        if((compMesAtivo || compAnoAtivo) && !(p && (!compMesAtivo || p.m === compMesAtivo) && (!compAnoAtivo || p.y === compAnoAtivo))) return false;
+        if(fa.cat && d.cat !== fa.cat) return false;
+        if(fa.placa && d.placa !== fa.placa) return false;
+        if(fa.frota && String(d.frota) !== String(fa.frota)) return false;
+        if(fa.filial && !d.filial.toUpperCase().includes(fa.filial)) return false;
+        if(fa.uf && d.uf !== fa.uf) return false;
+        if(fa.nf && !String(d.nf).includes(fa.nf)) return false;
+        if(fa.produto && !d.prod.toUpperCase().includes(fa.produto)) return false;
+        if(fa.tipo && d.tipo !== fa.tipo) return false;
+        if(fa.tserv && d.tserv !== fa.tserv) return false;
+        if(fa.fornecedor && !d.forn.toUpperCase().includes(fa.fornecedor)) return false;
+        if(fa.vmin && d.vtotal < parseFloat(fa.vmin)) return false;
+        if(fa.vmax && d.vtotal > parseFloat(fa.vmax)) return false;
+        const dtaqISO = brToISO(d.dtaq);
+        if(fa.dtaq_de && dtaqISO && dtaqISO < fa.dtaq_de) return false;
+        if(fa.dtaq_ate && dtaqISO && dtaqISO > fa.dtaq_ate) return false;
+        const compISO = d.compISO || brToISO(d.comp);
+        if(fa.comp_de && compISO && compISO < fa.comp_de) return false;
+        if(fa.comp_ate && compISO && compISO > fa.comp_ate) return false;
+        return true;
+    });
+
+    let vTotal = 0, qManut = 0, qPneu = 0;
+    const forns = new Set();
+    for(let d of lista) {
+        vTotal += d.vtotal;
+        if(d.cat === "Manutenção") qManut++;
+        if(d.cat === "Pneu" || d.cat === "Pneu/Recapagem") qPneu++;
+        forns.add(d.forn);
+    }
+
+    document.getElementById("total").textContent = lista.length;
+    document.getElementById("qtdManutencao").textContent = qManut;
+    document.getElementById("qtdPneu").textContent = qPneu;
+    document.getElementById("valorTotal").textContent = fmt(vTotal);
+    document.getElementById("qtdFornecedores").textContent = forns.size;
+
+    const html = [];
+    const limite = Math.min(lista.length, 1500);
+    for(let i=0; i<limite; i++) {
+        const d = lista[i];
+        const tservClass = d.tserv && d.tserv.includes("CAPEX") ? "capex" : "corretiva";
+        html.push(`<tr>
+            <td><span class="badge ${getBadgeClass(d.cat)}">${d.cat}</span></td>
+            <td>${d.frota}</td><td>${d.filial}</td><td><b>${d.placa}</b></td><td>${d.nf}</td>
+            <td>${d.prod}</td><td style="text-align:center">${d.qtd}</td>
+            <td class="valor">${fmt(d.vunit)}</td><td class="valor">${fmt(d.vtotal)}</td>
+            <td>${d.tipo}</td><td>${d.forn}</td><td>${d.uf}</td>
+            <td>${d.dtaq}</td><td>${d.comp||"-"}</td>
+            <td><span class="tipo-serv ${tservClass}">${d.tserv}</span></td>
+        </tr>`);
+    }
+    document.getElementById("tbody").innerHTML = html.join('');
+}
+
+function getBadgeClass(cat){
+  const m={"Pneu":"cat-pneu","Manutenção":"cat-manutencao","Pneu/Recapagem":"cat-recapagem","Manutenção de equipamento":"cat-equipamento","Abastecimento":"cat-abastecimento","Serviço de terceiro":"cat-servico","Lavagem":"cat-lavagem"};
+  return m[cat]||"cat-padrao";
+}
+
+function abrirModal(){document.getElementById("modalOverlay").classList.add("ativo");document.getElementById("msgSucesso").style.display="none";limparFormulario();}
+function fecharModal(){document.getElementById("modalOverlay").classList.remove("ativo");}
+function limparFormulario(){
+  ["f_cat","f_filial","f_frota","f_placa","f_nf","f_tipo","f_produto","f_vunit","f_vtotal","f_uf","f_fornecedor","f_dtaq","f_competencia","f_tserv"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el && el.tagName==="SELECT")el.selectedIndex=0;else if(el) el.value="";
+  });
+  document.getElementById("f_qtd").value="1";
+  document.getElementById("erroFrota").style.display="none";
+}
+
+function salvarChamado(){
+  const cat=document.getElementById("f_cat").value;
+  const frota=document.getElementById("f_frota").value;
+  const prod=document.getElementById("f_produto").value.trim();
+  if(!cat||!frota||!prod){alert("⚠️ Preencha os campos obrigatórios.");return;}
+  const compIso=document.getElementById("f_competencia").value;
+  dados.unshift({
+    id:proximoId++,cat,frota:frota,
+    filial:document.getElementById("f_filial").value||"A3",
+    placa:document.getElementById("f_placa").value,
+    nf:document.getElementById("f_nf").value||"-",
+    prod:prod,
+    qtd:parseFloat(document.getElementById("f_qtd").value)||1,
+    vunit:parseFloat(document.getElementById("f_vunit").value)||0,
+    vtotal:parseFloat(document.getElementById("f_vtotal").value)||0,
+    tipo:document.getElementById("f_tipo").value||"-",
+    forn:document.getElementById("f_fornecedor").value||"-",
+    uf:document.getElementById("f_uf").value||"-",
+    dtaq:fmtData(document.getElementById("f_dtaq").value),
+    comp:fmtData(compIso),compISO:compIso,
+    tserv:document.getElementById("f_tserv").value||"Corretiva"
+  });
+  renderizar();
+  document.getElementById("msgSucesso").style.display="block";
+  setTimeout(fecharModal,1000);
+}
+
+function atualizarPlacaPorFrota(){
+  const frota=document.getElementById("f_frota").value;
+  const placa=frotaPlacaVinculo[frota]||"";
+  document.getElementById("f_placa").value=placa;
+  document.getElementById("erroFrota").style.display=(frota&&!placa)?"block":"none";
+}
+
+function faAtualizarPlacaPorFrota(){
+  const frota=document.getElementById("fa_frota").value;
+  const placa=frotaPlacaVinculo[frota]||"";
+  document.getElementById("fa_placa").value=placa;
+}
+
+function calcTotal(){
+  const vunit=parseFloat(document.getElementById("f_vunit").value)||0;
+  const qtd=parseFloat(document.getElementById("f_qtd").value)||1;
+  document.getElementById("f_vtotal").value=(vunit * qtd).toFixed(2);
+}
+
+function toggleComp(e){
+  e.stopPropagation();
+  atualizarAnosDropdown();
+  document.getElementById("compDropdown").classList.toggle("aberto");
+}
+
+function atualizarAnosDropdown(){
+  const selAno=document.getElementById("fCompAno");
+  const anos=[...new Set(dados.map(d=>getCompetenciaParts(d)).filter(p=>p).map(p=>p.y))].sort();
+  selAno.innerHTML='<option value="">Todos</option>';
+  anos.forEach(a=>selAno.innerHTML+=`<option value="${a}" ${a===compAnoAtivo?'selected':''}>${a}</option>`);
+  document.getElementById("fCompMes").value=compMesAtivo;
+}
+
+function aplicarComp(){
+  compMesAtivo=document.getElementById("fCompMes").value;
+  compAnoAtivo=document.getElementById("fCompAno").value;
+  document.getElementById("compDropdown").classList.remove("aberto");
+  document.getElementById("compTag").style.display=(compMesAtivo||compAnoAtivo)?"inline":"none";
+  renderizar();
+}
+
+function limparComp(){
+  compMesAtivo="";compAnoAtivo="";
+  document.getElementById("fCompMes").value="";
+  document.getElementById("fCompAno").value="";
+  document.getElementById("compTag").style.display="none";
+  document.getElementById("compDropdown").classList.remove("aberto");
+  renderizar();
+}
+
+function abrirFiltrosAvancados(){
+  const selUF=document.getElementById("fa_uf");
+  const ufs=[...new Set(dados.map(d=>d.uf))].sort();
+  selUF.innerHTML='<option value="">Todas</option>';
+  ufs.forEach(u=>selUF.innerHTML+=`<option value="${u}" ${fa.uf===u?'selected':''}>${u}</option>`);
+  document.getElementById("fadvOverlay").classList.add("ativo");
+}
+
+function fecharFiltrosAvancados(){document.getElementById("fadvOverlay").classList.remove("ativo");}
+
+function aplicarFiltrosAvancados(){
+  fa.cat=document.getElementById("fa_cat").value;
+  fa.frota=document.getElementById("fa_frota").value;
+  fa.placa=document.getElementById("fa_placa").value;
+  fa.filial=document.getElementById("fa_filial").value.toUpperCase();
+  fa.uf=document.getElementById("fa_uf").value;
+  fa.nf=document.getElementById("fa_nf").value;
+  fa.produto=document.getElementById("fa_produto").value.toUpperCase();
+  fa.tipo=document.getElementById("fa_tipo").value;
+  fa.tserv=document.getElementById("fa_tserv").value;
+  fa.fornecedor=document.getElementById("fa_fornecedor").value.toUpperCase();
+  fa.vmin=document.getElementById("fa_vmin").value;
+  fa.vmax=document.getElementById("fa_vmax").value;
+  fa.dtaq_de=document.getElementById("fa_dtaq_de").value;
+  fa.dtaq_ate=document.getElementById("fa_dtaq_ate").value;
+  fa.comp_de=document.getElementById("fa_comp_de").value;
+  fa.comp_ate=document.getElementById("fa_comp_ate").value;
+  fecharFiltrosAvancados();
+  atualizarBadgeFiltros();
+  renderizar();
+}
+
+function limparFiltrosAvancados(){
+  fa={cat:"",placa:"",frota:"",filial:"",uf:"",nf:"",produto:"",tipo:"",tserv:"",fornecedor:"",vmin:"",vmax:"",dtaq_de:"",dtaq_ate:"",comp_de:"",comp_ate:""};
+  atualizarBadgeFiltros();
+  renderizar();
+}
+
+function atualizarBadgeFiltros(){
+  const count=Object.values(fa).filter(v=>v!=="").length;
+  const badge=document.getElementById("badgeFiltros");
+  badge.style.display=count>0?"inline":"none";
+  badge.textContent=count;
+}
+
+function limparTodosFiltros(){
+  document.getElementById("filtroCategoria").value="todos";
+  document.getElementById("busca").value="";
+  limparComp();
+  limparFiltrosAvancados();
+}
+
+document.addEventListener("click",function(e){
+  if(!document.getElementById("compWrapper").contains(e.target))
+    document.getElementById("compDropdown").classList.remove("aberto");
+});
+document.getElementById("modalOverlay").addEventListener("click",function(e){if(e.target===this)fecharModal();});
+document.getElementById("fadvOverlay").addEventListener("click",function(e){if(e.target===this)fecharFiltrosAvancados();});
+
+// Inicialização
+renderizar();
+
+document.querySelector('.btn.excel').addEventListener('click', () => {
+  // Filtra os dados conforme os filtros aplicados
+  const busca = document.getElementById("busca").value.toUpperCase();
+  const catFiltro = document.getElementById("filtroCategoria").value;
+
+  const lista = dados.filter(d => {
+      if(catFiltro !== "todos" && d.cat !== catFiltro) return false;
+      if(busca && !d.placa.includes(busca) && !d.prod.toUpperCase().includes(busca) && !d.forn.toUpperCase().includes(busca)) return false;
+      const p = getCompetenciaParts(d);
+      if((compMesAtivo || compAnoAtivo) && !(p && (!compMesAtivo || p.m === compMesAtivo) && (!compAnoAtivo || p.y === compAnoAtivo))) return false;
+      if(fa.cat && d.cat !== fa.cat) return false;
+      if(fa.placa && d.placa !== fa.placa) return false;
+      if(fa.frota && String(d.frota) !== String(fa.frota)) return false;
+      if(fa.filial && !d.filial.toUpperCase().includes(fa.filial)) return false;
+      if(fa.uf && d.uf !== fa.uf) return false;
+      if(fa.nf && !String(d.nf).includes(fa.nf)) return false;
+      if(fa.produto && !d.prod.toUpperCase().includes(fa.produto)) return false;
+      if(fa.tipo && d.tipo !== fa.tipo) return false;
+      if(fa.tserv && d.tserv !== fa.tserv) return false;
+      if(fa.fornecedor && !d.forn.toUpperCase().includes(fa.fornecedor)) return false;
+      if(fa.vmin && d.vtotal < parseFloat(fa.vmin)) return false;
+      if(fa.vmax && d.vtotal > parseFloat(fa.vmax)) return false;
+      const dtaqISO = brToISO(d.dtaq);
+      if(fa.dtaq_de && dtaqISO && dtaqISO < fa.dtaq_de) return false;
+      if(fa.dtaq_ate && dtaqISO && dtaqISO > fa.dtaq_ate) return false;
+      const compISO = d.compISO || brToISO(d.comp);
+      if(fa.comp_de && compISO && compISO < fa.comp_de) return false;
+      if(fa.comp_ate && compISO && compISO > fa.comp_ate) return false;
+      return true;
+  });
+
+  // Monta array para exportar
+  const exportData = lista.map(d => ({
+    CATEGORIA: d.cat,
+    FROTA: d.frota,
+    FILIAL: d.filial,
+    PLACA: d.placa,
+    'Nº NF': d.nf,
+    'PRODUTO / SERVIÇO': d.prod,
+    QTD: d.qtd,
+    'VALOR UNIT.': d.vunit,
+    'VALOR TOTAL': d.vtotal,
+    TIPO: d.tipo,
+    FORNECEDOR: d.forn,
+    UF: d.uf,
+    'DATA AQUISIÇÃO': d.dtaq,
+    'DATA COMPETÊNCIA': d.comp,
+    'TIPO DE SERVIÇO': d.tserv
+  }));
+
+  // Cria a planilha e faz o download
+  const ws = XLSX.utils.json_to_sheet(exportData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Dados");
+  XLSX.writeFile(wb, "controle_manutencao.xlsx");
+});
+
+document.querySelector('.btn.import-xml').addEventListener('click', () => {
+  document.getElementById('xmlFileInput').click();
+});
+
+function handleXmlImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  showLoading();
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+      try {
+          const xmlContent = evt.target.result;
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
+          
+          // Extrair dados do XML
+          const nfNumber = xmlDoc.querySelector('ide nNF')?.textContent || '-';
+          const fornecedor = xmlDoc.querySelector('emit xNome')?.textContent || '-';
+          const dataEmissao = xmlDoc.querySelector('ide dhEmi')?.textContent || '';
+          
+          // Converter data de emissão para formato DD/MM/YYYY
+          let dataAquisicao = '-';
+          if (dataEmissao) {
+              const datePart = dataEmissao.split('T')[0]; // Pega apenas a parte da data
+              const [year, month, day] = datePart.split('-');
+              dataAquisicao = `${day}/${month}/${year}`;
+          }
+          
+          // Processar itens do XML
+          const itens = xmlDoc.querySelectorAll('det');
+          const novosRegistros = [];
+          
+          itens.forEach(item => {
+              const nItem = item.querySelector('nItem')?.textContent || '';
+              const produto = item.querySelector('prod xProd')?.textContent || '-';
+              const quantidade = parseFloat(item.querySelector('prod qCom')?.textContent || 0);
+              const valorUnitario = parseFloat(item.querySelector('prod vUnCom')?.textContent || 0);
+              const valorTotal = parseFloat(item.querySelector('prod vProd')?.textContent || 0);
+              
+              // Criar novo registro
+              novosRegistros.push({
+                  id: proximoId++,
+                  cat: 'Manutenção', // Valor padrão
+                  frota: '-', // Não disponível no XML
+                  filial: '-', // Não disponível no XML
+                  placa: '-', // Não disponível no XML
+                  nf: nfNumber,
+                  prod: produto,
+                  qtd: quantidade,
+                  vunit: valorUnitario,
+                  vtotal: valorTotal,
+                  tipo: 'Produto', // Valor padrão
+                  forn: fornecedor,
+                  uf: '-', // Não disponível no XML
+                  dtaq: dataAquisicao,
+                  comp: dataAquisicao, // Usando data de aquisição como competência
+                  compISO: dataEmissao ? dataEmissao.split('T')[0] : '',
+                  tserv: 'Corretiva' // Valor padrão
+              });
+          });
+          
+          // Adicionar novos registros ao início dos dados
+          dados = [...novosRegistros, ...dados];
+          renderizar();
+      } catch (err) {
+          alert("Erro ao importar XML: " + err.message);
+      } finally {
+          hideLoading();
+          e.target.value = ""; // Resetar input file
+      }
+  };
+  reader.readAsText(file);
+}
+</script>
+</body>
+</html>
